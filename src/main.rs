@@ -11,7 +11,7 @@ use std::{
     path::Path,
 };
 
-const STATIC_SOURCE_PATH: &str = "./static";
+const STATIC_RESOURCE_PATH: &str = "./static";
 
 struct HttpConnect {
     tcp: TcpStream,
@@ -19,22 +19,33 @@ struct HttpConnect {
 
 impl HttpConnect {
     //连接控制，读取请求并判断请求类型
-    fn handle_connect(self) -> io::Result<()> {
-        if let Some(first_line) = self.read_line()? {
-            println!("{}", &first_line);
-            let mut header = first_line.split_whitespace();
-            let request_type = header.next().unwrap();
-            let url = header.next().unwrap();
-            //分发请求类型处理
-            match request_type.to_lowercase().as_str() {
-                "get" => self.get(url)?,
-                val => {
-                    eprintln!("Do not support request type! Request type: {}", val);
-                    return Ok(());
-                }
-            };
+    fn handle_connect(self) {
+        if let Ok(first_line) = self.read_line() {
+            if let Some(first_line) = first_line {
+                println!("{}", &first_line);
+                let mut header = first_line.split_whitespace();
+                let request_type = header.next().unwrap();
+                let url = header.next().unwrap();
+                //分发请求类型处理
+                match request_type.to_lowercase().as_str() {
+                    "get" => {
+                        if let Err(e) = self.get(url) {
+                            eprintln!(
+                                "The GET request is abnormal. Error reason: {}",
+                                e.to_string()
+                            );
+                            if let Err(e) = self.send_internal_server_error() {
+                                eprintln!("Response 500 failed. Error reason: {}", e.to_string());
+                            }
+                        }
+                    }
+                    val => {
+                        eprintln!("Do not support request type! Request type: {}", val);
+                    }
+                };
+            }
         }
-        Ok(())
+        self.shutdown();
     }
 
     //GET请求
@@ -48,14 +59,14 @@ impl HttpConnect {
             path = v[0];
         }
         //构建文件路径
-        let mut current_path = fs::canonicalize(Path::new(STATIC_SOURCE_PATH))?;
+        let mut current_path = fs::canonicalize(Path::new(STATIC_RESOURCE_PATH))?;
         for node in path.split("/") {
             current_path.push(node);
         }
-        println!("{}", current_path.display().to_string());
-        if current_path.is_dir() {}
-        let file = File::open(current_path)?;
-        self.send_ok(file)?;
+        match File::open(current_path) {
+            Ok(file) => self.send_ok(file)?,
+            Err(_) => self.send_not_found()?,
+        }
         Ok(())
     }
 
@@ -66,21 +77,47 @@ impl HttpConnect {
             http_status: HttpStatus::OK,
             params,
         };
-        self.send(header, file)
+        self.send(header, Some(&file))
     }
 
-    fn send(&self, header: ResponseHeader, file: File) -> io::Result<()> {
+    fn send_not_found(&self) -> io::Result<()> {
+        let mut params: HashMap<&str, &str> = HashMap::new();
+        params.insert("Content-Type", "text/html;text/html; charset=utf-8\r\n");
+        let header = ResponseHeader {
+            http_status: HttpStatus::NotFound,
+            params,
+        };
+        let html = "<!DOCTYPE html><head><title>404 NOT FOUND</title></head><body><h1>404 NOT FOUND!</h1></body></html>";
+        self.send(header, Some(&html.to_string()))
+    }
+
+    fn send_internal_server_error(&self) -> io::Result<()> {
+        let mut params: HashMap<&str, &str> = HashMap::new();
+        params.insert("Content-Type", "text/html;text/html; charset=utf-8\r\n");
+        let header = ResponseHeader {
+            http_status: HttpStatus::InternalServerError,
+            params,
+        };
+        let html = "<!DOCTYPE html><head><title>500 INTERNAL SERVER ERROR</title></head><body><h1>500 INTERNAL SERVER ERROR!</h1></body></html>";
+        self.send(header, Some(&html.to_string()))
+    }
+
+    fn send(&self, header: ResponseHeader, body: Option<&dyn ResponseBody>) -> io::Result<()> {
         let mut tcp = &self.tcp;
         tcp.write_all(header.get().as_bytes())?;
-        tcp.write_all(b"\r\n")?;
-        let mut buf_reader = BufReader::new(file);
-        while buf_reader.fill_buf()?.len() > 0 {
-            let size = tcp.write(buf_reader.buffer())?;
-            buf_reader.consume(size);
+        if let Some(body) = body {
+            body.write_in_connect(self)?;
         }
-        tcp.flush()?;
-        tcp.shutdown(std::net::Shutdown::Both)?;
         Ok(())
+    }
+
+    fn shutdown(self) {
+        if let Err(e) = self.tcp.shutdown(std::net::Shutdown::Both) {
+            eprintln!(
+                "Failed to shutdown the connection. Error reason: {}",
+                e.to_string()
+            );
+        }
     }
 
     /*
@@ -121,7 +158,7 @@ struct ResponseHeader<'a> {
 impl ResponseHeader<'_> {
     fn get(self) -> String {
         let mut header = String::new();
-        header.push_str(self.http_status.getHttpStatus());
+        header.push_str(self.http_status.get_http_status());
         for (key, val) in self.params.iter() {
             let param = format!("{}:{}\r\n", key, val);
             header.push_str(&param);
@@ -130,23 +167,65 @@ impl ResponseHeader<'_> {
     }
 }
 
+trait ResponseBody {
+    fn write_in_connect(&self, connect: &HttpConnect) -> io::Result<()>;
+}
+
+impl ResponseBody for File {
+    fn write_in_connect(&self, connect: &HttpConnect) -> io::Result<()> {
+        let mut tcp = &connect.tcp;
+        let mut buf_reader = BufReader::new(self);
+        while buf_reader.fill_buf()?.len() > 0 {
+            let size = tcp.write(buf_reader.buffer())?;
+            buf_reader.consume(size);
+        }
+        tcp.flush()?;
+        Ok(())
+    }
+}
+
+impl ResponseBody for String {
+    fn write_in_connect(&self, connect: &HttpConnect) -> io::Result<()> {
+        let mut tcp = &connect.tcp;
+        tcp.write_all(self.as_bytes())?;
+        tcp.flush()?;
+        Ok(())
+    }
+}
+
 enum HttpStatus {
-    OK,                    //"HTTP/1.0 200 OK\r\n"
-    NOT_FOUND,             //"HTTP/1.0 400 NOT FOUND\r\n"
-    INTERNAL_SERVER_ERROR, //"HTTP/1.0 500 INTERNAL SERVER ERROR\r\n"
+    OK,                  //"HTTP/1.0 200 OK\r\n"
+    NotFound,            //"HTTP/1.0 400 NOT FOUND\r\n"
+    InternalServerError, //"HTTP/1.0 500 INTERNAL SERVER ERROR\r\n"
 }
 
 impl HttpStatus {
-    fn getHttpStatus(&self) -> &str {
+    fn get_http_status(&self) -> &str {
         match self {
-            OK => "HTTP/1.0 200 OK\r\n",
-            NOT_FOUND => "HTTP/1.0 404 NOT FOUND\r\n",
-            INTERNAL_SERVER_ERROR => "HTTP/1.0 500 INTERNAL SERVER ERROR\r\n",
+            HttpStatus::OK => "HTTP/1.0 200 OK\r\n",
+            HttpStatus::NotFound => "HTTP/1.0 404 NOT FOUND\r\n",
+            HttpStatus::InternalServerError => "HTTP/1.0 500 INTERNAL SERVER ERROR\r\n",
         }
     }
 }
 
-fn main() -> Result<(), io::Error> {
+fn init() -> io::Result<()> {
+    let path = Path::new(STATIC_RESOURCE_PATH);
+    if !path.exists() {
+        fs::create_dir_all(path)?
+    }
+    Ok(())
+}
+
+fn init_check() {
+    if !Path::new(STATIC_RESOURCE_PATH).exists() {
+        panic!("The static resource folder does not exist.");
+    }
+}
+
+fn main() {
+    init().expect("Initialization failed");
+    init_check();
     let socket_addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 80);
     let listener = TcpListener::bind(socket_addr).unwrap();
 
@@ -154,14 +233,13 @@ fn main() -> Result<(), io::Error> {
         match stream {
             Ok(stream) => {
                 let http_connect = HttpConnect { tcp: stream };
-                http_connect.handle_connect()?
+                http_connect.handle_connect();
             }
             Err(e) => {
                 eprintln!("Connect Incoming Error:{}", e)
             }
         }
     }
-    Ok(())
 }
 
 #[cfg(test)]
