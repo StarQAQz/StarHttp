@@ -222,19 +222,36 @@ fn init_check() {
     }
 }
 
-pub struct ThreadPool {
-    threads: Vec<thread::JoinHandle<()>>,
+struct Worker {
+    id: usize,
+    work: thread::JoinHandle<()>,
+}
+
+impl Worker {
+    fn new(id: usize) -> Worker {
+        let work = thread::spawn(|| {});
+        Worker { id, work }
+    }
+}
+
+struct Job;
+
+
+struct ThreadPool {
+    workers: Vec<Worker>,
 }
 
 impl ThreadPool {
-    pub fn new(size: usize) -> ThreadPool {
+    fn new(size: usize) -> ThreadPool {
         assert!(size > 0);
-        let mut threads: Vec<thread::JoinHandle<()>> = Vec::with_capacity(size);
-        for _i in 0..size {}
+        let mut workers: Vec<Worker> = Vec::with_capacity(size);
+        for id in 0..size {
+            workers.push(Worker::new(id))
+        }
 
-        ThreadPool { threads }
+        ThreadPool { workers }
     }
-    pub fn exec<F>(&self, f: F)
+    fn exec<F>(&self, f: F)
     where
         F: FnOnce() + Send + 'static,
     {
