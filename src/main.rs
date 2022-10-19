@@ -9,6 +9,7 @@ use std::{
     io::{self, BufRead, BufReader, Read, Write},
     net::{Ipv4Addr, SocketAddrV4, TcpListener, TcpStream},
     path::Path,
+    sync::{mpsc, Arc, Mutex},
     thread,
 };
 
@@ -224,37 +225,64 @@ fn init_check() {
 
 struct Worker {
     id: usize,
-    work: thread::JoinHandle<()>,
+    work: Option<thread::JoinHandle<()>>,
 }
 
 impl Worker {
-    fn new(id: usize) -> Worker {
-        let work = thread::spawn(|| {});
-        Worker { id, work }
+    fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Job>>>) -> Worker {
+        let work = thread::spawn(move || loop {
+            let job = receiver.lock().unwrap().recv().unwrap();
+
+            println!("Worker {} got a job; executing.", id);
+
+            job();
+        });
+        Worker {
+            id,
+            work: Option::Some(work),
+        }
     }
 }
 
-struct Job;
-
+type Job = Box<dyn FnOnce() + Send + 'static>;
 
 struct ThreadPool {
     workers: Vec<Worker>,
+    sender: mpsc::Sender<Job>,
 }
 
 impl ThreadPool {
     fn new(size: usize) -> ThreadPool {
         assert!(size > 0);
+
+        let (sender, receiver) = mpsc::channel();
+
+        let receiver = Arc::new(Mutex::new(receiver));
+
         let mut workers: Vec<Worker> = Vec::with_capacity(size);
         for id in 0..size {
-            workers.push(Worker::new(id))
+            workers.push(Worker::new(id, Arc::clone(&receiver)))
         }
 
-        ThreadPool { workers }
+        ThreadPool { workers, sender }
     }
     fn exec<F>(&self, f: F)
     where
         F: FnOnce() + Send + 'static,
     {
+        let job = Box::new(f);
+        self.sender.send(job).unwrap();
+    }
+}
+
+impl Drop for ThreadPool {
+    fn drop(&mut self) {
+        for worker in &mut self.workers {
+            println!("Shutting down worker {}", worker.id);
+            if let Some(work) = worker.work.take() {
+                work.join().unwrap();
+            }
+        }
     }
 }
 
