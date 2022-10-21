@@ -5,6 +5,7 @@
  */
 use std::{
     collections::HashMap,
+    fmt::Error,
     fs::{self, File},
     io::{self, BufRead, BufReader, Read, Write},
     net::{Ipv4Addr, SocketAddrV4, TcpListener, TcpStream},
@@ -14,6 +15,8 @@ use std::{
 };
 
 const STATIC_RESOURCE_PATH: &str = "./static";
+const LOG_PATH: &str = "./log";
+const POOL_SIZE: usize = 10;
 
 //连接控制，读取请求并判断请求类型
 fn handle_connect(stream: TcpStream) {
@@ -209,20 +212,6 @@ impl HttpStatus {
     }
 }
 
-fn init() -> io::Result<()> {
-    let path = Path::new(STATIC_RESOURCE_PATH);
-    if !path.exists() {
-        fs::create_dir_all(path)?
-    }
-    Ok(())
-}
-
-fn init_check() {
-    if !Path::new(STATIC_RESOURCE_PATH).exists() {
-        panic!("The static resource folder does not exist.");
-    }
-}
-
 struct Worker {
     id: usize,
     work: Option<thread::JoinHandle<()>>,
@@ -263,9 +252,10 @@ struct ThreadPool {
 }
 
 impl ThreadPool {
-    fn new(size: usize) -> ThreadPool {
-        assert!(size > 0);
-
+    fn new(size: usize) -> Result<ThreadPool, Error> {
+        if size <= 0 {
+            eprintln!("The thread pool size must be greater than 0")
+        }
         let (sender, receiver) = mpsc::channel();
 
         let receiver = Arc::new(Mutex::new(receiver));
@@ -274,9 +264,9 @@ impl ThreadPool {
         for id in 0..size {
             workers.push(Worker::new(id, Arc::clone(&receiver)))
         }
-
-        ThreadPool { workers, sender }
+        Ok(ThreadPool { workers, sender })
     }
+
     fn exec<F>(&self, f: F)
     where
         F: FnOnce() + Send + 'static,
@@ -303,22 +293,30 @@ impl Drop for ThreadPool {
 }
 
 fn main() {
-    init().expect("Initialization failed");
-    init_check();
-    let socket_addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8989);
+    let path = Path::new(STATIC_RESOURCE_PATH);
+    if !path.exists() {
+        if let Err(e) = fs::create_dir_all(path) {
+            panic!("Initialization failed. Error:{}", e)
+        }
+    }
+
+    let socket_addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 80);
     let listener = TcpListener::bind(socket_addr).unwrap();
-
-    let pool = ThreadPool::new(10);
-
-    for stream in listener.incoming() {
-        match stream {
-            Ok(stream) => {
-                pool.exec(|| handle_connect(stream));
-            }
-            Err(e) => {
-                eprintln!("Connect Incoming Error:{}", e)
+    //创建线程池
+    match ThreadPool::new(POOL_SIZE) {
+        Ok(pool) => {
+            for stream in listener.incoming() {
+                match stream {
+                    Ok(stream) => {
+                        pool.exec(|| handle_connect(stream));
+                    }
+                    Err(e) => {
+                        eprintln!("Connect Incoming Error:{}", e)
+                    }
+                }
             }
         }
+        Err(e) => panic!("{}", e),
     }
 }
 
