@@ -15,7 +15,6 @@ use std::{
 };
 
 const STATIC_RESOURCE_PATH: &str = "./static";
-const LOG_PATH: &str = "./log";
 const POOL_SIZE: usize = 10;
 
 //连接控制，读取请求并判断请求类型
@@ -153,6 +152,22 @@ fn read_line(stream: &TcpStream) -> io::Result<Option<String>> {
     }
 }
 
+enum HttpStatus {
+    OK,                  //"HTTP/1.0 200 OK\r\n"
+    NotFound,            //"HTTP/1.0 400 NOT FOUND\r\n"
+    InternalServerError, //"HTTP/1.0 500 INTERNAL SERVER ERROR\r\n"
+}
+
+impl HttpStatus {
+    fn get_http_status(&self) -> &str {
+        match self {
+            HttpStatus::OK => "HTTP/1.0 200 OK\r\n",
+            HttpStatus::NotFound => "HTTP/1.0 404 NOT FOUND\r\n",
+            HttpStatus::InternalServerError => "HTTP/1.0 500 INTERNAL SERVER ERROR\r\n",
+        }
+    }
+}
+
 struct ResponseHeader<'a> {
     http_status: HttpStatus,
     params: HashMap<&'a str, &'a str>,
@@ -193,22 +208,6 @@ impl ResponseBody for String {
         tcp.write_all(self.as_bytes())?;
         tcp.flush()?;
         Ok(())
-    }
-}
-
-enum HttpStatus {
-    OK,                  //"HTTP/1.0 200 OK\r\n"
-    NotFound,            //"HTTP/1.0 400 NOT FOUND\r\n"
-    InternalServerError, //"HTTP/1.0 500 INTERNAL SERVER ERROR\r\n"
-}
-
-impl HttpStatus {
-    fn get_http_status(&self) -> &str {
-        match self {
-            HttpStatus::OK => "HTTP/1.0 200 OK\r\n",
-            HttpStatus::NotFound => "HTTP/1.0 404 NOT FOUND\r\n",
-            HttpStatus::InternalServerError => "HTTP/1.0 500 INTERNAL SERVER ERROR\r\n",
-        }
     }
 }
 
