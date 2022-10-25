@@ -39,7 +39,7 @@ fn main() {
                         pool.exec(|| handle_connect(stream));
                     }
                     Err(e) => {
-                        eprintln!("Connect Incoming Error:{}", e)
+                        log_error!("Connect Incoming Error:{}", e)
                     }
                 }
             }

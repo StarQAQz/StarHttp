@@ -6,7 +6,7 @@ use std::{
     path::Path,
 };
 
-use crate::{config::STATIC_RESOURCE_PATH, error::HttpError};
+use crate::{config::STATIC_RESOURCE_PATH, error::HttpError, log_error, log_info};
 
 enum HttpStatus {
     OK,                  //"HTTP/1.0 200 OK\r\n"
@@ -78,7 +78,7 @@ impl ResponseBody for String {
 pub fn handle_connect(stream: TcpStream) {
     if let Ok(first_line) = read_line(&stream) {
         if let Some(first_line) = first_line {
-            println!("{}", &first_line);
+            log_info!("{}", &first_line);
             let mut header = first_line.split_whitespace();
             let request_type = header.next().unwrap();
             let url = header.next().unwrap();
@@ -86,17 +86,14 @@ pub fn handle_connect(stream: TcpStream) {
             match request_type.to_lowercase().as_str() {
                 "get" => {
                     if let Err(e) = get(&stream, url) {
-                        eprintln!(
-                            "The GET request is abnormal. Error reason: {}",
-                            e.to_string()
-                        );
+                        log_error!("The GET request is abnormal. Error reason: {}", e);
                         if let Err(e) = send_failed(&stream, &HttpStatus::InternalServerError) {
-                            eprintln!("Response 500 failed. Error reason: {}", e.to_string());
+                            log_error!("Response 500 failed. Error reason: {}", e);
                         }
                     }
                 }
                 val => {
-                    eprintln!("Do not support request type! Request type: {}", val);
+                    log_error!("Do not support request type! Request type: {}", val);
                 }
             };
         }
@@ -120,8 +117,14 @@ fn get(stream: &TcpStream, url: &str) -> Result<(), HttpError> {
         current_path.push(node);
     }
     match File::open(current_path) {
-        Ok(file) => send_ok(stream, file)?,
-        Err(_) => send_failed(stream, &HttpStatus::NotFound)?,
+        Ok(file) => {
+            send_ok(stream, file)?;
+            log_info!("GET {} SUCCESS!",url);
+        }
+        Err(_) => {
+            send_failed(stream, &HttpStatus::NotFound)?;
+            log_error!("GET {} NOT FOUND!", url)
+        }
     }
     Ok(())
 }
@@ -191,7 +194,7 @@ fn send(
 
 fn shutdown(stream: TcpStream) {
     if let Err(e) = stream.shutdown(std::net::Shutdown::Both) {
-        eprintln!(
+        log_error!(
             "Failed to shutdown the connection. Error reason: {}",
             e.to_string()
         );
