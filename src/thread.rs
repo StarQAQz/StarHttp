@@ -3,7 +3,7 @@ use std::{
     thread,
 };
 
-use crate::error::ThreadError;
+use crate::{error::ThreadError, log::Log};
 
 struct Worker {
     id: usize,

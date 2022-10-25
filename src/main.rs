@@ -1,8 +1,9 @@
+mod config;
 mod error;
 mod http;
-mod thread;
-mod config;
 mod log;
+mod thread;
+mod time;
 
 /*
  * @Description: 程序入口
@@ -15,7 +16,7 @@ use std::{
     path::Path,
 };
 
-use config::{STATIC_RESOURCE_PATH, POOL_SIZE};
+use config::{POOL_SIZE, STATIC_RESOURCE_PATH};
 use http::handle_connect;
 use thread::ThreadPool;
 
