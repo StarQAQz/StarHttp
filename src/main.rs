@@ -5,11 +5,6 @@ mod log;
 mod thread;
 mod time;
 
-/*
- * @Description: 程序入口
- * @Author: zhengzetao
- * @Date: 2022-07-05 13:21:18
- */
 use std::{
     fs,
     net::{Ipv4Addr, SocketAddrV4, TcpListener},
