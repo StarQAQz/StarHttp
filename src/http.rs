@@ -1,11 +1,9 @@
 use std::{
     collections::HashMap,
-    fmt::format,
     fs::File,
     io::{BufRead, BufReader, Read, Write},
     net::TcpStream,
     path::PathBuf,
-    string,
 };
 
 use crate::{config::STATIC_RESOURCE_PATH, error::HttpError, log_error, log_info};
@@ -170,11 +168,8 @@ fn send_ok(stream: &TcpStream, file: File) -> Result<(), HttpError> {
         "Content-Type",
         String::from("text/html;text/html; charset=utf-8\r\n"),
     );
-    if let Ok(metadata) = file.metadata(){
-        params.insert(
-            "Content-Length",
-            metadata.len().to_string()
-        );
+    if let Ok(metadata) = file.metadata() {
+        params.insert("Content-Length", metadata.len().to_string());
     }
     let header = ResponseHeader {
         http_status: &HttpStatus::OK,
@@ -190,10 +185,7 @@ fn send_failed(stream: &TcpStream, http_status: &HttpStatus) -> Result<(), HttpE
         "Content-Type",
         String::from("text/html;text/html; charset=utf-8\r\n"),
     );
-    params.insert(
-        "Content-Length",
-        html.len().to_string()
-    );
+    params.insert("Content-Length", html.len().to_string());
     let header = ResponseHeader {
         http_status,
         params,
