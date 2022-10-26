@@ -1,9 +1,11 @@
 use std::{
     collections::HashMap,
+    fmt::format,
     fs::File,
     io::{BufRead, BufReader, Read, Write},
     net::TcpStream,
     path::PathBuf,
+    string,
 };
 
 use crate::{config::STATIC_RESOURCE_PATH, error::HttpError, log_error, log_info};
@@ -33,7 +35,7 @@ impl HttpStatus {
 
 struct ResponseHeader<'a> {
     http_status: &'a HttpStatus,
-    params: HashMap<&'a str, &'a str>,
+    params: HashMap<&'a str, String>,
 }
 
 impl ResponseHeader<'_> {
@@ -163,8 +165,17 @@ fn read_line(stream: &TcpStream) -> Result<Option<String>, HttpError> {
 }
 
 fn send_ok(stream: &TcpStream, file: File) -> Result<(), HttpError> {
-    let mut params: HashMap<&str, &str> = HashMap::new();
-    params.insert("Content-Type", "text/html;text/html; charset=utf-8\r\n");
+    let mut params: HashMap<&str, String> = HashMap::new();
+    params.insert(
+        "Content-Type",
+        String::from("text/html;text/html; charset=utf-8\r\n"),
+    );
+    if let Ok(metadata) = file.metadata(){
+        params.insert(
+            "Content-Length",
+            metadata.len().to_string()
+        );
+    }
     let header = ResponseHeader {
         http_status: &HttpStatus::OK,
         params,
@@ -173,13 +184,20 @@ fn send_ok(stream: &TcpStream, file: File) -> Result<(), HttpError> {
 }
 
 fn send_failed(stream: &TcpStream, http_status: &HttpStatus) -> Result<(), HttpError> {
-    let mut params: HashMap<&str, &str> = HashMap::new();
-    params.insert("Content-Type", "text/html;text/html; charset=utf-8\r\n");
+    let html = http_status.get_status_default_html();
+    let mut params: HashMap<&str, String> = HashMap::new();
+    params.insert(
+        "Content-Type",
+        String::from("text/html;text/html; charset=utf-8\r\n"),
+    );
+    params.insert(
+        "Content-Length",
+        html.len().to_string()
+    );
     let header = ResponseHeader {
         http_status,
         params,
     };
-    let html = http_status.get_status_default_html();
     send(stream, header, Some(&html.to_string()))
 }
 
