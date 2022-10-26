@@ -1,9 +1,9 @@
 use std::{
     collections::HashMap,
-    fs::{self, File},
+    fs::File,
     io::{BufRead, BufReader, Read, Write},
     net::TcpStream,
-    path::{self, Path, PathBuf},
+    path::PathBuf,
 };
 
 use crate::{config::STATIC_RESOURCE_PATH, error::HttpError, log_error, log_info};
@@ -113,7 +113,7 @@ fn get(stream: &TcpStream, url: &str) -> Result<(), HttpError> {
     }
     //构建文件路径
     let mut current_path = PathBuf::from(STATIC_RESOURCE_PATH);
-    if current_path.is_absolute(){
+    if current_path.is_absolute() {
         current_path = current_path.canonicalize()?;
     }
     for node in path.split("/") {

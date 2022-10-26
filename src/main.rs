@@ -22,7 +22,6 @@ fn main() {
             panic!("Initialization failed. Error:{}", e)
         }
     }
-
     let socket_addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 80);
     let listener = TcpListener::bind(socket_addr).unwrap();
     //创建线程池
