@@ -3,7 +3,7 @@ use std::{
     fs::{self, File},
     io::{BufRead, BufReader, Read, Write},
     net::TcpStream,
-    path::Path,
+    path::{self, Path, PathBuf},
 };
 
 use crate::{config::STATIC_RESOURCE_PATH, error::HttpError, log_error, log_info};
@@ -112,19 +112,23 @@ fn get(stream: &TcpStream, url: &str) -> Result<(), HttpError> {
         path = v[0];
     }
     //构建文件路径
-    let mut current_path = fs::canonicalize(Path::new(STATIC_RESOURCE_PATH))?;
-    for node in path.split("/") {
-        current_path.push(node);
+    let mut current_path = PathBuf::from(STATIC_RESOURCE_PATH);
+    if current_path.is_absolute(){
+        current_path = current_path.canonicalize()?;
     }
-    match File::open(current_path) {
-        Ok(file) => {
-            send_ok(stream, file)?;
-            log_info!("GET {} SUCCESS!",url);
+    for node in path.split("/") {
+        current_path = current_path.join(node);
+    }
+    if current_path.exists() && current_path.is_file() {
+        match File::open(current_path.as_path()) {
+            Ok(file) => {
+                send_ok(stream, file)?;
+                log_info!("GET {} SUCCESS!", url);
+            }
+            Err(e) => return Result::Err(HttpError::from(e)),
         }
-        Err(_) => {
-            send_failed(stream, &HttpStatus::NotFound)?;
-            log_error!("GET {} NOT FOUND!", url)
-        }
+    } else {
+        send_failed(stream, &HttpStatus::NotFound)?;
     }
     Ok(())
 }
