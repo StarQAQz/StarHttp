@@ -44,6 +44,7 @@ impl ResponseHeader<'_> {
             let param = format!("{}:{}\r\n", key, val);
             header.push_str(&param);
         }
+        header.push_str("\r\n");
         return header;
     }
 }
@@ -166,7 +167,7 @@ fn send_ok(stream: &TcpStream, file: File) -> Result<(), HttpError> {
     let mut params: HashMap<&str, String> = HashMap::new();
     params.insert(
         "Content-Type",
-        String::from("text/html;text/html; charset=utf-8\r\n"),
+        String::from("text/html;text/html; charset=utf-8"),
     );
     if let Ok(metadata) = file.metadata() {
         params.insert("Content-Length", metadata.len().to_string());
@@ -183,7 +184,7 @@ fn send_failed(stream: &TcpStream, http_status: &HttpStatus) -> Result<(), HttpE
     let mut params: HashMap<&str, String> = HashMap::new();
     params.insert(
         "Content-Type",
-        String::from("text/html;text/html; charset=utf-8\r\n"),
+        String::from("text/html;text/html; charset=utf-8"),
     );
     params.insert("Content-Length", html.len().to_string());
     let header = ResponseHeader {
