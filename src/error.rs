@@ -2,6 +2,7 @@ use core::fmt;
 use std::{
     fmt::{Debug, Display},
     io,
+    str::Utf8Error,
 };
 
 pub struct HttpError {
@@ -32,6 +33,15 @@ impl From<io::Error> for HttpError {
     fn from(error: io::Error) -> Self {
         HttpError {
             kind: "io".to_string(),
+            message: error.to_string(),
+        }
+    }
+}
+
+impl From<Utf8Error> for HttpError {
+    fn from(error: Utf8Error) -> Self {
+        HttpError {
+            kind: "utf8".to_string(),
             message: error.to_string(),
         }
     }

@@ -4,6 +4,7 @@ mod http;
 mod log;
 mod thread;
 mod time;
+mod hex;
 
 use std::{
     fs,
@@ -30,6 +31,7 @@ fn main() {
             for stream in listener.incoming() {
                 match stream {
                     Ok(stream) => {
+                        log_info!("Connect Incoming!");
                         pool.exec(|| handle_connect(stream));
                     }
                     Err(e) => {
