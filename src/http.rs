@@ -107,7 +107,7 @@ fn get(stream: &TcpStream, url: String) -> Result<(), HttpError> {
     //读取剩余请求
     while let Some(_) = read_line(&stream)? {}
     //解析url，分隔参数
-    let mut path = "";
+    let mut path = url.as_str();
     if url.contains("?") {
         let v: Vec<&str> = url.split("?").collect();
         path = v[0];
