@@ -1,11 +1,11 @@
 #静态目录
-STATIC_RESOURCE_PATH = "./static"
+static_resource_path = "./static"
 #线程池大小
-POOL_SIZE = 6
+pool_size = 6
 #时区
-IMEZONE = 8#时区
+timezone = 8 #时区
 
 #IP
-IP = "127.0.0.1"
+ip = "127.0.0.1"
 #Port
-PORT = 80
+port = 80

@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fs::File, io::Read, path::PathBuf, sync::Once};
+use std::{collections::HashMap, fmt::Error, fs::File, io::Read, path::PathBuf, sync::Once};
 
 //静态目录
 pub const STATIC_RESOURCE_PATH: &str = "./static";
@@ -11,7 +11,7 @@ pub const IP: &str = "127.0.0.1";
 //Port
 pub const PORT: u16 = 80;
 
-const CONFIG_PATH: &str = "./config.toml";
+const CONFIG_PATH: &str = "./Config.toml";
 static ONCE: Once = Once::new();
 static mut CONFIG: Option<HashMap<String, ConfValType>> = Option::None;
 
@@ -21,6 +21,61 @@ enum ConfValType {
     Num(isize),
     None,
 }
+
+struct Config {
+    config: HashMap<String, ConfValType>,
+}
+
+impl Config {
+    pub fn init() -> Config {
+        ONCE.call_once(|| {
+            parse_config(read_config());
+        });
+        unsafe {
+            match CONFIG.take() {
+                Some(config) => Config { config },
+                None => panic!("The initial configuration fails!"),
+            }
+        }
+    }
+
+    fn get_config<T>(&self, key: &str) -> Result<T, Error> {
+        match self.config.get(key) {
+            Some(config) => match config {
+                ConfValType::Text(_) => todo!(),
+                ConfValType::Num(_) => todo!(),
+                ConfValType::None => todo!(),
+            },
+            _ => todo!(),
+        }
+    }
+    pub fn static_resource_path(&self) -> Option<String> {
+        match self.config.get("static_resource_path") {
+            Some(config) => match config {
+                ConfValType::Text(config) => Some(config.clone()),
+                ConfValType::Num(config) => {
+                    panic!("The static resource configuration should be a string")
+                }
+                ConfValType::None => None,
+            },
+            None => None,
+        }
+    }
+
+    pub fn pool_size(&self) -> Option<isize> {
+        match self.config.get("pool_size") {
+            Some(config) => match config {
+                ConfValType::Text(config) => {
+                    panic!("The pool size configuration should be a number")
+                }
+                ConfValType::Num(config) => Some(config.clone()),
+                ConfValType::None => None,
+            },
+            None => None,
+        }
+    }
+}
+
 fn init_config() {
     ONCE.call_once(|| {
         parse_config(read_config());
