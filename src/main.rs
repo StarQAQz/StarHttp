@@ -1,10 +1,10 @@
 mod config;
 mod error;
+mod hex;
 mod http;
 mod log;
 mod thread;
 mod time;
-mod hex;
 
 use std::{
     fs,
@@ -23,24 +23,30 @@ fn main() {
             panic!("Initialization failed. Error:{}", e)
         }
     }
-    let socket_addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 80);
-    let listener = TcpListener::bind(socket_addr).unwrap();
-    //创建线程池
-    match ThreadPool::new(POOL_SIZE) {
-        Ok(pool) => {
-            for stream in listener.incoming() {
-                match stream {
-                    Ok(stream) => {
-                        log_info!("Connect Incoming!");
-                        pool.exec(|| handle_connect(stream));
-                    }
-                    Err(e) => {
-                        log_error!("Connect Incoming Error:{}", e)
+    let socket_addr = SocketAddrV4::new(config::IP.parse::<Ipv4Addr>().unwrap(), config::PORT);
+    match TcpListener::bind(socket_addr) {
+        Ok(listener) => {
+            //创建线程池
+            match ThreadPool::new(POOL_SIZE) {
+                Ok(pool) => {
+                    for stream in listener.incoming() {
+                        match stream {
+                            Ok(stream) => {
+                                log_info!("Connect Incoming!");
+                                pool.exec(|| handle_connect(stream));
+                            }
+                            Err(e) => {
+                                log_error!("Connect Incoming Error:{}", e)
+                            }
+                        }
                     }
                 }
+                Err(e) => panic!("{}", e),
             }
         }
-        Err(e) => panic!("{}", e),
+        Err(e) => {
+            log_error!("Failed to listen to the IP port! Err:{}", e);
+        }
     }
 }
 
