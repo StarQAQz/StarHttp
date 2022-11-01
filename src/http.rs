@@ -6,7 +6,7 @@ use std::{
     path::PathBuf,
 };
 
-use crate::{config::STATIC_RESOURCE_PATH, error::HttpError, hex, log_error, log_info};
+use crate::{config::MyConfig, error::HttpError, hex, log_error, log_info};
 
 enum HttpStatus {
     OK,                  //"HTTP/1.0 200 OK\r\n"
@@ -113,7 +113,7 @@ fn get(stream: &TcpStream, url: String) -> Result<(), HttpError> {
         path = v[0];
     }
     //构建文件路径
-    let mut current_path = PathBuf::from(STATIC_RESOURCE_PATH);
+    let mut current_path = PathBuf::from(MyConfig::new().static_resource_path);
     if current_path.is_absolute() {
         current_path = current_path.canonicalize()?;
     }

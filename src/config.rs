@@ -1,85 +1,52 @@
-use std::{collections::HashMap, fmt::Error, fs::File, io::Read, path::PathBuf, sync::Once};
-
-//静态目录
-pub const STATIC_RESOURCE_PATH: &str = "./static";
-//线程池大小
-pub const POOL_SIZE: usize = 6;
-//时区
-pub const TIMEZONE: i32 = 8;
-//IP
-pub const IP: &str = "127.0.0.1";
-//Port
-pub const PORT: u16 = 80;
+use std::{collections::HashMap, fs::File, io::Read, path::PathBuf, sync::Once};
 
 const CONFIG_PATH: &str = "./Config.toml";
 static ONCE: Once = Once::new();
 static mut CONFIG: Option<HashMap<String, ConfValType>> = Option::None;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum ConfValType {
     Text(String),
     Num(isize),
     None,
 }
 
-struct Config {
+pub struct Config {
     config: HashMap<String, ConfValType>,
 }
 
 impl Config {
-    pub fn init() -> Config {
+    pub fn build() -> Config {
         ONCE.call_once(|| {
             parse_config(read_config());
         });
         unsafe {
-            match CONFIG.take() {
+            match CONFIG.clone() {
                 Some(config) => Config { config },
                 None => panic!("The initial configuration fails!"),
             }
         }
     }
 
-    fn get_config<T>(&self, key: &str) -> Result<T, Error> {
+    fn get_text(&self, key: &str) -> Option<String> {
         match self.config.get(key) {
             Some(config) => match config {
-                ConfValType::Text(_) => todo!(),
-                ConfValType::Num(_) => todo!(),
-                ConfValType::None => todo!(),
-            },
-            _ => todo!(),
-        }
-    }
-    pub fn static_resource_path(&self) -> Option<String> {
-        match self.config.get("static_resource_path") {
-            Some(config) => match config {
                 ConfValType::Text(config) => Some(config.clone()),
-                ConfValType::Num(config) => {
-                    panic!("The static resource configuration should be a string")
-                }
-                ConfValType::None => None,
+                _ => None,
             },
             None => None,
         }
     }
 
-    pub fn pool_size(&self) -> Option<isize> {
-        match self.config.get("pool_size") {
+    fn get_num(&self, key: &str) -> Option<isize> {
+        match self.config.get(key) {
             Some(config) => match config {
-                ConfValType::Text(config) => {
-                    panic!("The pool size configuration should be a number")
-                }
                 ConfValType::Num(config) => Some(config.clone()),
-                ConfValType::None => None,
+                _ => None,
             },
             None => None,
         }
     }
-}
-
-fn init_config() {
-    ONCE.call_once(|| {
-        parse_config(read_config());
-    });
 }
 
 fn read_config() -> String {
@@ -116,7 +83,8 @@ fn parse_config(config: String) {
                 } else {
                     //读取数值
                     let vs: Vec<&str> = v.split("#").collect();
-                    value = ConfValType::Num((*vs.get(0).unwrap()).parse::<isize>().unwrap());
+                    let v = (*(vs.get(0).unwrap())).trim();
+                    value = ConfValType::Num(v.parse::<isize>().unwrap());
                 }
             }
             config_kv.insert(key.to_owned(), value);
@@ -127,15 +95,106 @@ fn parse_config(config: String) {
     }
 }
 
+//业务逻辑
+static MY_CONFIG_ONCE: Once = Once::new();
+static mut MY_CONFIG: Option<MyConfig> = None;
+#[derive(Clone)]
+pub struct MyConfig {
+    pub static_resource_path: String,
+    pub thread_pool_size: usize,
+    pub timezone: i32,
+    pub ip: std::net::Ipv4Addr,
+    pub port: u16,
+}
+
+impl MyConfig {
+    pub fn new() -> MyConfig {
+        MY_CONFIG_ONCE.call_once(|| {
+            let config = Config::build();
+            unsafe {
+                MY_CONFIG = Some(MyConfig {
+                    static_resource_path: Self::get_static_resource_path(&config),
+                    thread_pool_size: Self::get_thread_pool_size(&config),
+                    timezone: Self::get_timezone(&config),
+                    ip: Self::get_ip(&config),
+                    port: Self::get_port(&config),
+                })
+            }
+        });
+        unsafe {
+            match &MY_CONFIG {
+                Some(config) => config.clone(),
+                None => {
+                    panic!("Configuration initialization error, please check the configuration!")
+                }
+            }
+        }
+    }
+    fn get_static_resource_path(config: &Config) -> String {
+        match config.get_text("static_resource_path") {
+            Some(static_resource_path) => {
+                return static_resource_path;
+            }
+            None => {
+                panic!(
+                    "The static resource path is incorrectly configured. Check the configuration."
+                )
+            }
+        };
+    }
+
+    fn get_thread_pool_size(config: &Config) -> usize {
+        match config.get_num("thread_pool_size") {
+            Some(thread_pool_size) => thread_pool_size as usize,
+            None => panic!(
+                "The thread pool configuration is incorrect. Please check the configuration."
+            ),
+        }
+    }
+
+    fn get_timezone(config: &Config) -> i32 {
+        match config.get_num("timezone") {
+            Some(timezone) => timezone as i32,
+            None => {
+                panic!("The time zone configuration is incorrect. Please check the configuration.")
+            }
+        }
+    }
+
+    fn get_ip(config: &Config) -> std::net::Ipv4Addr {
+        match config.get_text("ip") {
+            Some(ip) => match ip.parse::<std::net::Ipv4Addr>() {
+                Ok(ip) => ip,
+                Err(_) => panic!(
+                    "The ip address configuration is incorrect. Please check the configuration."
+                ),
+            },
+            None => {
+                panic!("The ip address configuration is incorrect. Please check the configuration.")
+            }
+        }
+    }
+
+    fn get_port(config: &Config) -> u16 {
+        match config.get_num("port") {
+            Some(port) => port as u16,
+            None => panic!("The port configuration is incorrect. Please check the configuration."),
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
 
     #[test]
     fn test_parse_config() {
-        init_config();
-        unsafe {
-            println!("{:?}", CONFIG);
-        }
+        let config = MyConfig::new();
+        println!("{}", config.static_resource_path);
+        println!("{}", config.thread_pool_size);
+        println!("{}", config.timezone);
+        let config = MyConfig::new();
+        println!("{}", config.ip);
+        println!("{}", config.port);
     }
 }

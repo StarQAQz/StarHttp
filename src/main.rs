@@ -8,26 +8,27 @@ mod time;
 
 use std::{
     fs,
-    net::{Ipv4Addr, SocketAddrV4, TcpListener},
+    net::{SocketAddrV4, TcpListener},
     path::Path,
 };
 
-use config::{POOL_SIZE, STATIC_RESOURCE_PATH};
+use config::MyConfig;
 use http::handle_connect;
 use thread::ThreadPool;
 
 fn main() {
-    let path = Path::new(STATIC_RESOURCE_PATH);
+    let config = MyConfig::new();
+    let path = Path::new(&config.static_resource_path);
     if !path.exists() {
         if let Err(e) = fs::create_dir_all(path) {
             panic!("Initialization failed. Error:{}", e)
         }
     }
-    let socket_addr = SocketAddrV4::new(config::IP.parse::<Ipv4Addr>().unwrap(), config::PORT);
+    let socket_addr = SocketAddrV4::new(config.ip, config.port);
     match TcpListener::bind(socket_addr) {
         Ok(listener) => {
             //创建线程池
-            match ThreadPool::new(POOL_SIZE) {
+            match ThreadPool::new(config.thread_pool_size) {
                 Ok(pool) => {
                     for stream in listener.incoming() {
                         match stream {

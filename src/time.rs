@@ -1,6 +1,6 @@
 use std::{sync::RwLock, time};
 
-use crate::config::TIMEZONE;
+use crate::config::MyConfig;
 
 #[derive(Debug)]
 struct Date {
@@ -19,7 +19,7 @@ impl Date {
             .duration_since(time::SystemTime::UNIX_EPOCH)
             .unwrap()
             .as_secs() as i32
-            + TIMEZONE * 60 * 60;
+            + MyConfig::new().timezone * 60 * 60;
         let mut temp;
         //计算年
         loop {
