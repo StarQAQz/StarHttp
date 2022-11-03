@@ -9,17 +9,27 @@ Demo可用于简单学习参考。感兴趣的可以阅读下源码，并提出�
 ## 软件架构
 
 项目源码文件目录介绍
-
-- src
-  - config.rs 配置项（目前没有通过读取配置文件的方式进行配置，后续考虑加入）
-  - error.rs 自定义异常类型
-  - http.rs 服务器核心服务
-  - log.rs 日志功能
-  - main.rs 程序入口
-  - thread.rs 线程并发功能
-  - time.rs 时间工具（用于日志显示时间）
+- STAR-HTTP
+  - src
+    - config.rs		配置读取功能
+    - error.rs		自定义异常类型
+    - hex.rs 		url中文字符utf-8编码转义
+    - http.rs 		服务器核心服务
+    - log.rs 		日志功能
+    - main.rs 		程序入口
+    - thread.rs 	线程并发功能
+    - time.rs 		时间工具（用于日志显示时间）
+  - config.toml 	配置
 
 ## 功能说明
+
+**2022-11-03**
+
+现已实现硬编码配置分离，实现配置文件读取。修复URL的UTF-8编码导致请求页面失败。
+
+后续会将项目部署一个小demo。
+
+**2022-10-26**
 
 目前只实现了HTTP1.1 GET方式请求（对于静态文件服务来说相对足够），线程池处理，日志记录。
 
@@ -48,15 +58,18 @@ rust build --release
 
 ### 配置
 
-配置文件中默认配置了线程池大小、静态文件服务目录以及时间时区，可根据需要进行更改
+config.toml配置文件中默认配置了线程池大小、静态文件服务目录以及时间时区，可根据需要进行更改
 
-```rust
-//config.rs
-//静态目录
-pub const STATIC_RESOURCE_PATH: &str = "./static";
-//线程池大小
-pub const POOL_SIZE: usize = 6;
-//时区，东八区
-pub const TIMEZONE: i32 = 8;
+```toml
+#静态目录
+static_resource_path = "./static"
+#线程池大小
+thread_pool_size = 6
+#时区
+timezone = 8
+#IP
+ip = "127.0.0.1"
+#Port
+port = 80
 ```
 

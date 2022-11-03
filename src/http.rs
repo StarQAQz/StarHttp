@@ -6,7 +6,7 @@ use std::{
     path::PathBuf,
 };
 
-use crate::{config::STATIC_RESOURCE_PATH, error::HttpError, log_error, log_info};
+use crate::{config::MyConfig, error::HttpError, hex, log_error, log_info};
 
 enum HttpStatus {
     OK,                  //"HTTP/1.0 200 OK\r\n"
@@ -79,13 +79,13 @@ impl ResponseBody for String {
 pub fn handle_connect(stream: TcpStream) {
     if let Ok(first_line) = read_line(&stream) {
         if let Some(first_line) = first_line {
-            log_info!("{}", &first_line);
             let mut header = first_line.split_whitespace();
             let request_type = header.next().unwrap();
-            let url = header.next().unwrap();
+            let url = hex::url_decoding(header.next().unwrap().to_string());
             //分发请求类型处理
             match request_type.to_lowercase().as_str() {
                 "get" => {
+                    log_info!("GET {}", url);
                     if let Err(e) = get(&stream, url) {
                         log_error!("The GET request is abnormal. Error reason: {}", e);
                         if let Err(e) = send_failed(&stream, &HttpStatus::InternalServerError) {
@@ -103,17 +103,17 @@ pub fn handle_connect(stream: TcpStream) {
 }
 
 //GET请求
-fn get(stream: &TcpStream, url: &str) -> Result<(), HttpError> {
+fn get(stream: &TcpStream, url: String) -> Result<(), HttpError> {
     //读取剩余请求
     while let Some(_) = read_line(&stream)? {}
     //解析url，分隔参数
-    let mut path = url;
+    let mut path = url.as_str();
     if url.contains("?") {
         let v: Vec<&str> = url.split("?").collect();
         path = v[0];
     }
     //构建文件路径
-    let mut current_path = PathBuf::from(STATIC_RESOURCE_PATH);
+    let mut current_path = PathBuf::from(MyConfig::new().static_resource_path);
     if current_path.is_absolute() {
         current_path = current_path.canonicalize()?;
     }

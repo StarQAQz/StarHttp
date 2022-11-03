@@ -1,0 +1,10 @@
+#静态目录
+static_resource_path = "./static"
+#线程池大小
+thread_pool_size = 6
+#时区
+timezone = 8
+#IP
+ip = "127.0.0.1"
+#Port
+port = 80
