@@ -49,6 +49,35 @@ impl ResponseHeader<'_> {
     }
 }
 
+struct RequestHeader {
+    params: HashMap<String, String>,
+}
+
+impl RequestHeader {
+    //读取请求标头
+    fn read_request_header(stream: &TcpStream) -> Result<RequestHeader, HttpError> {
+        let mut params: HashMap<String, String> = HashMap::new();
+        while let Some(line) = read_line(&stream)? {
+            let kv: Vec<&str> = line.split(':').map(|h| h.trim()).collect();
+            params.insert(
+                kv.get(0).unwrap().to_lowercase(),
+                kv.get(1).unwrap().to_string(),
+            );
+        }
+        Ok(RequestHeader { params })
+    }
+
+    fn get_first_accept(&self) -> Option<String> {
+        if let Some(accept) = self.params.get("accept") {
+            let accepts: Vec<&str> = accept.split(',').map(|a| a.trim()).collect();
+            if let Some(accept) = accepts.get(0) {
+                return Option::Some((*accept).to_owned());
+            }
+        }
+        Option::None
+    }
+}
+
 trait ResponseBody {
     fn write_in_connect(&self, stream: &TcpStream) -> Result<(), HttpError>;
 }
@@ -79,33 +108,40 @@ impl ResponseBody for String {
 pub fn handle_connect(stream: TcpStream) {
     if let Ok(first_line) = read_line(&stream) {
         if let Some(first_line) = first_line {
+            //读取请求第一行参数
+            log_info!("{}", first_line);
             let mut header = first_line.split_whitespace();
             let request_type = header.next().unwrap();
             let url = hex::url_decoding(header.next().unwrap().to_string());
-            //分发请求类型处理
-            match request_type.to_lowercase().as_str() {
-                "get" => {
-                    log_info!("GET {}", url);
-                    if let Err(e) = get(&stream, url) {
-                        log_error!("The GET request is abnormal. Error reason: {}", e);
-                        if let Err(e) = send_failed(&stream, &HttpStatus::InternalServerError) {
-                            log_error!("Response 500 failed. Error reason: {}", e);
+            //读取请求头
+            match RequestHeader::read_request_header(&stream) {
+                Ok(request_header) => {
+                    //分发请求类型处理
+                    match request_type.to_lowercase().as_str() {
+                        "get" => {
+                            if let Err(e) = get(&stream, request_header, url) {
+                                log_error!("The GET request is abnormal. Error reason: {}", e);
+                                if let Err(e) =
+                                    send_failed(&stream, &HttpStatus::InternalServerError)
+                                {
+                                    log_error!("Response 500 failed. Error reason: {}", e);
+                                }
+                            }
                         }
-                    }
+                        val => {
+                            log_error!("Do not support request type! Request type: {}", val);
+                        }
+                    };
                 }
-                val => {
-                    log_error!("Do not support request type! Request type: {}", val);
-                }
-            };
+                Err(e) => log_error!("The read request header is abnormal! Err:{}", e),
+            }
         }
     }
     shutdown(stream);
 }
 
 //GET请求
-fn get(stream: &TcpStream, url: String) -> Result<(), HttpError> {
-    //读取剩余请求
-    while let Some(_) = read_line(&stream)? {}
+fn get(stream: &TcpStream, request_header: RequestHeader, url: String) -> Result<(), HttpError> {
     //解析url，分隔参数
     let mut path = url.as_str();
     if url.contains("?") {
@@ -123,7 +159,7 @@ fn get(stream: &TcpStream, url: String) -> Result<(), HttpError> {
     if current_path.exists() && current_path.is_file() {
         match File::open(current_path.as_path()) {
             Ok(file) => {
-                send_ok(stream, file)?;
+                send_ok(stream, request_header, file)?;
                 log_info!("GET {} SUCCESS!", url);
             }
             Err(e) => return Result::Err(HttpError::from(e)),
@@ -163,12 +199,12 @@ fn read_line(stream: &TcpStream) -> Result<Option<String>, HttpError> {
     }
 }
 
-fn send_ok(stream: &TcpStream, file: File) -> Result<(), HttpError> {
+fn send_ok(stream: &TcpStream, request_header: RequestHeader, file: File) -> Result<(), HttpError> {
     let mut params: HashMap<&str, String> = HashMap::new();
-    params.insert(
-        "Content-Type",
-        String::from("text/html;text/html; charset=utf-8"),
-    );
+    match request_header.get_first_accept() {
+        Some(accept) => params.insert("Content-Type", format!("{}; charset=utf-8", accept)),
+        _ => params.insert("Content-Type", String::from("text/html; charset=utf-8")),
+    };
     if let Ok(metadata) = file.metadata() {
         params.insert("Content-Length", metadata.len().to_string());
     }
@@ -196,11 +232,11 @@ fn send_failed(stream: &TcpStream, http_status: &HttpStatus) -> Result<(), HttpE
 
 fn send(
     stream: &TcpStream,
-    header: ResponseHeader,
+    response_header: ResponseHeader,
     body: Option<&dyn ResponseBody>,
 ) -> Result<(), HttpError> {
     let mut tcp = stream;
-    tcp.write_all(header.get().as_bytes())?;
+    tcp.write_all(response_header.get().as_bytes())?;
     if let Some(body) = body {
         body.write_in_connect(stream)?;
     }
