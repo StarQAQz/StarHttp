@@ -61,7 +61,7 @@ rust build --release
 config.toml配置文件中默认配置了线程池大小、静态文件服务目录以及时间时区，可根据需要进行更改
 
 ```toml
-#静态目录
+#静态目录(尽量使用绝对路径)
 static_resource_path = "./static"
 #线程池大小
 thread_pool_size = 6
