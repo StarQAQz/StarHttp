@@ -1,6 +1,6 @@
-use std::{collections::HashMap, fs::File, io::Read, path::PathBuf, sync::Once};
+use std::{collections::HashMap, fs::File, io::Read, path::PathBuf, sync::Once, env};
 
-const CONFIG_PATH: &str = "./Config.toml";
+const CONFIG_PATH: &str = "config.toml";
 static ONCE: Once = Once::new();
 static mut CONFIG: Option<HashMap<String, ConfValType>> = Option::None;
 
@@ -50,7 +50,12 @@ impl Config {
 }
 
 fn read_config() -> String {
-    let config_path = PathBuf::from(CONFIG_PATH).canonicalize().unwrap();
+    let exe_path = PathBuf::from(env::args().nth(0).unwrap());
+    let exe_dir = exe_path.parent().unwrap();
+    let mut config_path = exe_dir.join(CONFIG_PATH);
+    if !config_path.exists(){
+        config_path = PathBuf::from(CONFIG_PATH);
+    }
     if !config_path.exists() || !config_path.is_file() {
         panic!("The configuration file does not exist!");
     }
