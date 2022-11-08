@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fs::File, io::Read, path::PathBuf, sync::Once, env};
+use std::{collections::HashMap, env, fs::File, io::Read, path::PathBuf, sync::Once};
 
 const CONFIG_PATH: &str = "config.toml";
 static ONCE: Once = Once::new();
@@ -53,7 +53,7 @@ fn read_config() -> String {
     let exe_path = PathBuf::from(env::args().nth(0).unwrap());
     let exe_dir = exe_path.parent().unwrap();
     let mut config_path = exe_dir.join(CONFIG_PATH);
-    if !config_path.exists(){
+    if !config_path.exists() {
         config_path = PathBuf::from(CONFIG_PATH);
     }
     if !config_path.exists() || !config_path.is_file() {
@@ -106,6 +106,7 @@ static mut MY_CONFIG: Option<MyConfig> = None;
 #[derive(Clone)]
 pub struct MyConfig {
     pub static_resource_path: String,
+    pub index_page_path: String,
     pub thread_pool_size: usize,
     pub timezone: i32,
     pub ip: std::net::Ipv4Addr,
@@ -119,6 +120,7 @@ impl MyConfig {
             unsafe {
                 MY_CONFIG = Some(MyConfig {
                     static_resource_path: Self::get_static_resource_path(&config),
+                    index_page_path: Self::get_index_page_path(&config),
                     thread_pool_size: Self::get_thread_pool_size(&config),
                     timezone: Self::get_timezone(&config),
                     ip: Self::get_ip(&config),
@@ -144,6 +146,17 @@ impl MyConfig {
                 panic!(
                     "The static resource path is incorrectly configured. Check the configuration."
                 )
+            }
+        };
+    }
+
+    fn get_index_page_path(config: &Config) -> String {
+        match config.get_text("index_page_path") {
+            Some(index_page_path) => {
+                return index_page_path;
+            }
+            None => {
+                return "index.html".to_owned();
             }
         };
     }

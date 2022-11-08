@@ -1,5 +1,7 @@
 #静态目录(尽量使用绝对路径)
 static_resource_path = "./static"
+#配置默认首页（相对静态目录的路径）
+index_page_path = "index.html"
 #线程池大小
 thread_pool_size = 6
 #时区

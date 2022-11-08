@@ -141,19 +141,23 @@ pub fn handle_connect(stream: TcpStream) {
 }
 
 //GET请求
-fn get(stream: &TcpStream, request_header: RequestHeader, url: String) -> Result<(), HttpError> {
-    //解析url，分隔参数
-    let mut path = url.as_str();
-    if url.contains("?") {
-        let v: Vec<&str> = url.split("?").collect();
-        path = v[0];
+fn get(
+    stream: &TcpStream,
+    request_header: RequestHeader,
+    mut url: String,
+) -> Result<(), HttpError> {
+    //默认页面
+    let config = MyConfig::new();
+    if "/".eq(url.trim()) {
+        url = config.index_page_path;
     }
+    println!("{}", url);
     //构建文件路径
-    let mut current_path = PathBuf::from(MyConfig::new().static_resource_path);
+    let mut current_path = PathBuf::from(config.static_resource_path);
     if current_path.is_absolute() {
         current_path = current_path.canonicalize()?;
     }
-    for node in path.split("/") {
+    for node in url.split("/") {
         current_path = current_path.join(node);
     }
     if current_path.exists() && current_path.is_file() {
