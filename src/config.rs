@@ -107,6 +107,8 @@ static mut MY_CONFIG: Option<MyConfig> = None;
 pub struct MyConfig {
     pub static_resource_path: String,
     pub index_page_path: String,
+    pub page404_path: Option<String>,
+    pub page500_path: Option<String>,
     pub thread_pool_size: usize,
     pub timezone: i32,
     pub ip: std::net::Ipv4Addr,
@@ -121,6 +123,8 @@ impl MyConfig {
                 MY_CONFIG = Some(MyConfig {
                     static_resource_path: Self::get_static_resource_path(&config),
                     index_page_path: Self::get_index_page_path(&config),
+                    page404_path: Self::get_page404_path(&config),
+                    page500_path: Self::get_page500_path(&config),
                     thread_pool_size: Self::get_thread_pool_size(&config),
                     timezone: Self::get_timezone(&config),
                     ip: Self::get_ip(&config),
@@ -157,6 +161,28 @@ impl MyConfig {
             }
             None => {
                 return "index.html".to_owned();
+            }
+        };
+    }
+
+    fn get_page404_path(config: &Config) -> Option<String> {
+        match config.get_text("page404_path") {
+            Some(page404_path) => {
+                return Some(page404_path);
+            }
+            None => {
+                return None;
+            }
+        };
+    }
+
+    fn get_page500_path(config: &Config) -> Option<String> {
+        match config.get_text("page500_path") {
+            Some(page500_path) => {
+                return Some(page500_path);
+            }
+            None => {
+                return None;
             }
         };
     }

@@ -22,11 +22,41 @@ impl HttpStatus {
             HttpStatus::InternalServerError => "HTTP/1.0 500 INTERNAL SERVER ERROR\r\n",
         }
     }
-    fn get_status_default_html(&self) -> &str {
+    fn get_status_default_html(&self) -> Box<dyn ResponseBody> {
+        //获取配置
+        let config = MyConfig::new();
+        //构建文件路径
+        let mut current_path = PathBuf::from(config.static_resource_path);
         match self {
-            HttpStatus::OK => "",
-            HttpStatus::NotFound => "<!DOCTYPE html><head><title>404 NOT FOUND</title></head><body><h1>404 NOT FOUND!</h1></body></html>",
-            HttpStatus::InternalServerError => "<!DOCTYPE html><head><title>500 INTERNAL SERVER ERROR</title></head><body><h1>500 INTERNAL SERVER ERROR!</h1></body></html>",
+            HttpStatus::OK => Box::new(String::from("")),
+            HttpStatus::NotFound => {
+                if let Some(path) = config.page404_path {
+                    current_path = current_path.join(path);
+                    if current_path.exists() && current_path.is_file() {
+                        match File::open(current_path.as_path()) {
+                            Ok(file) => return Box::new(file),
+                            Err(e) => log_error!("Custom 404 page read error, error cause:{}", e),
+                        }
+                    } else {
+                        log_error!("Custom 404 page not found, please check the configuration!")
+                    }
+                }
+                Box::new(String::from("<!DOCTYPE html><head><title>404 NOT FOUND</title></head><body><h1>404 NOT FOUND!</h1></body></html>"))
+            }
+            HttpStatus::InternalServerError => {
+                if let Some(path) = config.page500_path {
+                    current_path = current_path.join(path);
+                    if current_path.exists() && current_path.is_file() {
+                        match File::open(current_path.as_path()) {
+                            Ok(file) => return Box::new(file),
+                            Err(e) => log_error!("Custom 500 page read error, error cause:{}", e),
+                        }
+                    } else {
+                        log_error!("Custom 500 page not found, please check the configuration!")
+                    }
+                }
+                Box::new(String::from("<!DOCTYPE html><head><title>500 INTERNAL SERVER ERROR</title></head><body><h1>500 INTERNAL SERVER ERROR!</h1></body></html>"))
+            }
         }
     }
 }
@@ -80,6 +110,7 @@ impl RequestHeader {
 
 trait ResponseBody {
     fn write_in_connect(&self, stream: &TcpStream) -> Result<(), HttpError>;
+    fn len(&self) -> Result<usize, HttpError>;
 }
 
 impl ResponseBody for File {
@@ -93,6 +124,10 @@ impl ResponseBody for File {
         tcp.flush()?;
         Ok(())
     }
+
+    fn len(&self) -> Result<usize, HttpError> {
+        Ok(self.metadata()?.len() as usize)
+    }
 }
 
 impl ResponseBody for String {
@@ -101,6 +136,10 @@ impl ResponseBody for String {
         tcp.write_all(self.as_bytes())?;
         tcp.flush()?;
         Ok(())
+    }
+
+    fn len(&self) -> Result<usize, HttpError> {
+        Ok(self.len())
     }
 }
 
@@ -151,10 +190,9 @@ fn get(
     if "/".eq(url.trim()) {
         url = config.index_page_path;
     }
-    println!("{}", url);
     //构建文件路径
     let mut current_path = PathBuf::from(config.static_resource_path);
-    if current_path.is_absolute() {
+    if !current_path.is_absolute() {
         current_path = current_path.canonicalize()?;
     }
     for node in url.split("/") {
@@ -216,7 +254,7 @@ fn send_ok(stream: &TcpStream, request_header: RequestHeader, file: File) -> Res
         http_status: &HttpStatus::OK,
         params,
     };
-    send(stream, header, Some(&file))
+    send(stream, header, Box::new(file))
 }
 
 fn send_failed(stream: &TcpStream, http_status: &HttpStatus) -> Result<(), HttpError> {
@@ -226,24 +264,22 @@ fn send_failed(stream: &TcpStream, http_status: &HttpStatus) -> Result<(), HttpE
         "Content-Type",
         String::from("text/html;text/html; charset=utf-8"),
     );
-    params.insert("Content-Length", html.len().to_string());
+    params.insert("Content-Length", html.len()?.to_string());
     let header = ResponseHeader {
         http_status,
         params,
     };
-    send(stream, header, Some(&html.to_string()))
+    send(stream, header, html)
 }
 
 fn send(
     stream: &TcpStream,
     response_header: ResponseHeader,
-    body: Option<&dyn ResponseBody>,
+    body: Box<dyn ResponseBody>,
 ) -> Result<(), HttpError> {
     let mut tcp = stream;
     tcp.write_all(response_header.get().as_bytes())?;
-    if let Some(body) = body {
-        body.write_in_connect(stream)?;
-    }
+    body.write_in_connect(stream)?;
     Ok(())
 }
 
