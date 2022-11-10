@@ -1,6 +1,6 @@
-use std::{collections::HashMap, fs::File, io::Read, path::PathBuf, sync::Once};
+use std::{collections::HashMap, env, fs::File, io::Read, path::PathBuf, sync::Once};
 
-const CONFIG_PATH: &str = "./Config.toml";
+const CONFIG_PATH: &str = "config.toml";
 static ONCE: Once = Once::new();
 static mut CONFIG: Option<HashMap<String, ConfValType>> = Option::None;
 
@@ -50,7 +50,12 @@ impl Config {
 }
 
 fn read_config() -> String {
-    let config_path = PathBuf::from(CONFIG_PATH).canonicalize().unwrap();
+    let exe_path = PathBuf::from(env::args().nth(0).unwrap());
+    let exe_dir = exe_path.parent().unwrap();
+    let mut config_path = exe_dir.join(CONFIG_PATH);
+    if !config_path.exists() {
+        config_path = PathBuf::from(CONFIG_PATH);
+    }
     if !config_path.exists() || !config_path.is_file() {
         panic!("The configuration file does not exist!");
     }
@@ -101,6 +106,9 @@ static mut MY_CONFIG: Option<MyConfig> = None;
 #[derive(Clone)]
 pub struct MyConfig {
     pub static_resource_path: String,
+    pub index_page_path: String,
+    pub page404_path: Option<String>,
+    pub page500_path: Option<String>,
     pub thread_pool_size: usize,
     pub timezone: i32,
     pub ip: std::net::Ipv4Addr,
@@ -114,6 +122,9 @@ impl MyConfig {
             unsafe {
                 MY_CONFIG = Some(MyConfig {
                     static_resource_path: Self::get_static_resource_path(&config),
+                    index_page_path: Self::get_index_page_path(&config),
+                    page404_path: Self::get_page404_path(&config),
+                    page500_path: Self::get_page500_path(&config),
                     thread_pool_size: Self::get_thread_pool_size(&config),
                     timezone: Self::get_timezone(&config),
                     ip: Self::get_ip(&config),
@@ -139,6 +150,39 @@ impl MyConfig {
                 panic!(
                     "The static resource path is incorrectly configured. Check the configuration."
                 )
+            }
+        };
+    }
+
+    fn get_index_page_path(config: &Config) -> String {
+        match config.get_text("index_page_path") {
+            Some(index_page_path) => {
+                return index_page_path;
+            }
+            None => {
+                return "index.html".to_owned();
+            }
+        };
+    }
+
+    fn get_page404_path(config: &Config) -> Option<String> {
+        match config.get_text("page404_path") {
+            Some(page404_path) => {
+                return Some(page404_path);
+            }
+            None => {
+                return None;
+            }
+        };
+    }
+
+    fn get_page500_path(config: &Config) -> Option<String> {
+        match config.get_text("page500_path") {
+            Some(page500_path) => {
+                return Some(page500_path);
+            }
+            None => {
+                return None;
             }
         };
     }

@@ -1,5 +1,11 @@
-#静态目录
+#静态目录(尽量使用绝对路径)
 static_resource_path = "./static"
+#配置默认首页（可修改，默认index.html)(相对静态目录的路径）
+index_page_path = "index首页.html"
+#配置自定义404页面（可选)(相对静态目录的路径）
+page404_path = "404.html"
+#配置自定义500页面（可选)(相对静态目录的路径）
+page500_path = "500.html"
 #线程池大小
 thread_pool_size = 6
 #时区
