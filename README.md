@@ -2,31 +2,30 @@
 
 ## 介绍
 
-StarHttp是采用Rust开发的一个小型静态服务器。项目无外部依赖项，使用线程池并发模式进行。
+[StarHttp](https://gitee.com/StarQAQz/star-http)是采用Rust开发的一个小型静态服务器。项目无外部依赖项，使用线程池并发模式进行。
 
 项目可用于简单学习参考。感兴趣的可以阅读下源码，并提出改进意见。
 
-目前项目已用于部署个人博客：https://www.bluestar.zone/
+目前项目已用于部署[ReadMe](https://www.bluestar.zone/origin/starhttp/starhttp.html)和[个人博客](https://www.bluestar.zone)
 
 ## 软件架构
 
 项目源码文件目录介绍
-
 - STAR-HTTP
   - src
     - config.rs		配置读取功能
     - error.rs		自定义异常类型
-    - hex.rs 		url中文字符utf-8编码转义
+    - hex.rs 		  url中文字符utf-8编码转义
     - http.rs 		服务器核心服务
-    - log.rs 		日志功能
+    - log.rs 		  日志功能
     - main.rs 		程序入口
     - thread.rs 	线程并发功能
     - time.rs 		时间工具（用于日志显示时间）
   - config.toml 	配置
-  - static 默认静态目录
-    - index.html 默认首页页面
-    - 404.html 可配置404页面
-    - 500.html 可配置500页面
+  - static        默认静态目录
+    - index.html  默认首页页面
+    - 404.html    可配置404页面
+    - 500.html    可配置500页面
 
 ## 更新说明
 
